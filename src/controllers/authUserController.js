@@ -111,6 +111,7 @@ export const Login = async (req, res) => {
     if (!isMatch) return res.status(401).send("Invalid credentials");
 
     const payload = { userId: user._id, role: user.role };
+    // Generate tokens (log minimal context for debugging)
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
@@ -124,7 +125,8 @@ export const Login = async (req, res) => {
       maxAge: 15 * 60 * 1000  
     });
 
-    res.cookie("refreshToken", refreshToken, {  
+    // Use a single refresh token cookie name `jwt` consistently with refresh/logout handlers
+    res.cookie("jwt", refreshToken, {  
       httpOnly: true,
       secure: true,
       sameSite: "none",
@@ -135,6 +137,11 @@ export const Login = async (req, res) => {
 
     res.json({ message: "Logged in successfully", accessToken });
   } catch (error) {
+    console.error("Login error:", {
+      message: error?.message,
+      name: error?.name,
+      stack: process.env.NODE_ENV === 'production' ? undefined : error?.stack,
+    });
     res.status(500).json({ message: "Login error", error: error.message });
   }
 };
@@ -212,7 +219,8 @@ export const Logout = async (req, res) => {
     }
 
     res.clearCookie("accessToken", { httpOnly: true, secure: true, sameSite: "none" });
-     res.clearCookie("refreshToken", { httpOnly: true, secure: true, sameSite: "none" });
+    // Clear the standardized refresh cookie name
+    res.clearCookie("jwt", { httpOnly: true, secure: true, sameSite: "none" });
     res.json({ message: "Logged out successfully" });
   } catch (error) {
     res.status(500).json({ message: "Logout failed", error: error.message });
