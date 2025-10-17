@@ -41,6 +41,8 @@ async function sendEmail(to, subject, html) {
   }
 }
 
+
+
 // for sending verification email
 export async function sendVerificationEmail(to, otp) {
   const subject = "Your Email Verification OTP";
@@ -62,4 +64,25 @@ export async function sendForgotPasswordEmail(to, resetLink) {
     <p>If you didn't request this, please ignore this email.</p>
   `;
   return sendEmail(to, subject, htmlContent);
+}
+
+
+export async function sendOrderConfirmationEmail(userEmail, tickets, orderId) {
+  const message = {
+    from: process.env.SMTP_USER,
+    to: userEmail,
+    subject: 'Your Ticket Purchase Confirmation',
+    html: `<h2>ti ID: ${orderId}</h2>
+           <p>Thank you for your purchase! Here are your ticket details:</p>
+           <ul>
+           ${tickets
+             .map(
+               (ticket) =>
+                 `<li>${ticket.name} - Quantity: ${ticket.quantity} - Price: ${ticket.price}</li>`
+             )
+             .join('')}
+           </ul>`,
+  };
+
+  await transporter.sendMail(message);
 }

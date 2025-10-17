@@ -20,6 +20,7 @@ import authUserRouter from "./routers/authUserRouter.js";
 import ticketRouter from './routers/ticketRouter.js';
 import productRouter from './routers/productRouter.js';
 import contactUsInfoRouter from "./routers/ContactUsInfoRouter.js"
+import addToCartRouter from "./routers/addtocartRouter.js";
 
 
 
@@ -28,6 +29,7 @@ app.use("/api/v1/auth" ,authUserRouter)
 app.use("/api/v1/tickets" ,ticketRouter)
 app.use("/api/v1/products" ,productRouter)
 app.use("/api/user-info", contactUsInfoRouter);
+app.use("/api/v1/cart", addToCartRouter); 
 
 
 

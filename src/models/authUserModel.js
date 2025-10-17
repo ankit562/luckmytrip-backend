@@ -53,15 +53,7 @@ const clientSchema = new mongoose.Schema({
   refreshToken: {
     type: String,  // for JWT refresh token management
   },
-  ticket: [
-            {
-                type: Number,
-                required: false,
-                default: 0
-            }
-        ],
-  
-  // Email verification
+
   verifyToken: String,
   verifyTokenExpiry: Date,
   isVerified: { type: Boolean, default: false },
