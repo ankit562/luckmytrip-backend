@@ -105,46 +105,48 @@ export const Login = async (req, res) => {
 
     const user = await Client.findOne({ email });
     if (!user) return res.status(401).send("Invalid credentials");
-    if (!user.isVerified) return res.status(401).send("Email not verified");
+
+    // Allow login if verified or role is in allowed list even if not verified
+    const allowedRoles = ["admin", "superadmin", "content-creator"];
+    if (!user.isVerified && !allowedRoles.includes(user.role)) {
+      return res.status(401).send("Email not verified");
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).send("Invalid credentials");
 
     const payload = { userId: user._id, role: user.role };
-    // Generate tokens (log minimal context for debugging)
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.cookie("accessToken", accessToken, {  
+    res.cookie("accessToken", accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
-      maxAge: 15 * 60 * 1000  
+      maxAge: 15 * 60 * 1000,
     });
 
-    // Use a single refresh token cookie name `jwt` consistently with refresh/logout handlers
-    res.cookie("jwt", refreshToken, {  
+    res.cookie("jwt", refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-
-  
 
     res.json({ message: "Logged in successfully", accessToken });
   } catch (error) {
     console.error("Login error:", {
       message: error?.message,
       name: error?.name,
-      stack: process.env.NODE_ENV === 'production' ? undefined : error?.stack,
+      stack: process.env.NODE_ENV === "production" ? undefined : error?.stack,
     });
     res.status(500).json({ message: "Login error", error: error.message });
   }
 };
+
 
 // Extend your authUserController to add forgot password request (to send reset email)
 export const ForgotPasswordRequest = async (req, res) => {

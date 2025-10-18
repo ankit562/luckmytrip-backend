@@ -1,5 +1,5 @@
 import TicketPurchase from "../models/addtocartModel.js";
-import {sendOrderConfirmationEmail } from "../lib/emailService.js"
+import { sendOrderConfirmationEmail } from "../lib/emailService.js";
 
 // Start Ticket Purchase (save info, status: pending)
 export const startTicketPurchase = async (req, res) => {
@@ -34,112 +34,116 @@ export const startTicketPurchase = async (req, res) => {
       quantity,
       gift,
       coupon,
-      status: "pending",
+      // status defaults to "pending"
     });
 
     await purchase.save();
-    res.status(201).json({ success: true, purchase });
+
+    return res.status(201).json({ success: true, purchase });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("Start Ticket Purchase error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 // PayU webhook callback (payment confirmation)
 export const payuCallback = async (req, res) => {
   try {
-    const { orderId, paymentStatus, userEmail, ticketName, quantity, totalPrice } = req.body;
+    const { orderId, paymentStatus, userEmail } = req.body;
 
     if (paymentStatus === "success") {
       const purchase = await TicketPurchase.findById(orderId).populate("ticket");
+
       if (!purchase) return res.status(404).send("Purchase not found");
 
       purchase.status = "confirmed";
       await purchase.save();
 
-      const emailHtml = `
-        <h2>Ticket Purchase Confirmation - Order ID: ${orderId}</h2>
-        <p>Thank you for buying the ticket <b>${purchase.ticket.name}</b>!</p>
-        <p>Quantity: ${purchase.quantity}</p>
-        <p>Total Price Paid: ₹${purchase.totalPrice}</p>
-      `;
+      const tickets = [
+        {
+          name: purchase.ticket.name,
+          quantity: purchase.quantity,
+          price: purchase.totalPrice,
+        },
+      ];
 
-      await sendOrderConfirmationEmail(userEmail, "Your Ticket Purchase Confirmation", emailHtml);
-      res.status(200).send("Payment processed and email sent");
+      await sendOrderConfirmationEmail(userEmail, tickets, orderId);
+
+      return res.status(200).send("Payment processed and email sent");
     } else {
-      res.status(400).send("Payment failed");
+      return res.status(400).send("Payment failed");
     }
   } catch (error) {
     console.error("PayU webhook error:", error);
-    res.status(500).send("Internal Server Error");
+    return res.status(500).send("Internal Server Error");
   }
 };
 
-
-// Get user cart/orders
+// Get all purchases (cart/orders) for user
 export const getCart = async (req, res) => {
   try {
     const userId = req.user._id;
-    const carts = await AddToCart.find({ user: userId })
-      .populate("tickets.ticket")
-      .populate("products.product");
+    const purchases = await TicketPurchase.find({ user: userId }).populate("ticket");
 
-    res.status(200).json({ success: true, carts });
+    return res.status(200).json({ success: true, purchases });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Get Cart error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Update cart item quantity, address etc.
+// Update purchase (cart item)
 export const updateCart = async (req, res) => {
   try {
-    const cartId = req.params.itemId;
+    const purchaseId = req.params.itemId;
     const updateData = req.body;
 
-    const updatedCart = await AddToCart.findByIdAndUpdate(cartId, updateData, {
+    const updatedPurchase = await TicketPurchase.findByIdAndUpdate(purchaseId, updateData, {
       new: true,
       runValidators: true,
     });
 
-    if (!updatedCart) return res.status(404).json({ success: false, message: "Cart not found" });
+    if (!updatedPurchase) return res.status(404).json({ success: false, message: "Purchase not found" });
 
-    res.status(200).json({ success: true, cart: updatedCart });
+    return res.status(200).json({ success: true, purchase: updatedPurchase });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Update Cart error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Remove item from cart OR cancel cart
+// Remove purchase (cart item)
 export const removeCartItem = async (req, res) => {
   try {
-    const cartId = req.params.itemId;
+    const purchaseId = req.params.itemId;
 
-    const deletedCart = await AddToCart.findByIdAndDelete(cartId);
-    if (!deletedCart) return res.status(404).json({ success: false, message: "Cart not found" });
+    const deletedPurchase = await TicketPurchase.findByIdAndDelete(purchaseId);
+    if (!deletedPurchase) return res.status(404).json({ success: false, message: "Purchase not found" });
 
-    res.status(200).json({ success: true, message: "Cart removed" });
+    return res.status(200).json({ success: true, message: "Purchase removed" });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Remove Cart Item error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Place order: Update status and trigger payment (example just updating status here)
+// Place order: update status and simulate payment trigger
 export const placeOrder = async (req, res) => {
   try {
-    const { cartId } = req.body;
-    const cart = await AddToCart.findById(cartId)
-      .populate("tickets.ticket")
-      .populate("products.product");
+    const { purchaseId } = req.body;
 
-    if (!cart) return res.status(404).json({ success: false, message: "Cart not found" });
+    const purchase = await TicketPurchase.findById(purchaseId).populate("ticket");
 
-    // Here you should generate PayU order and redirect user on frontend accordingly
-    // For demo, we mark it confirmed (in real scenario - do it after successful payment callback)
-    cart.status = "confirmed";
-    await cart.save();
+    if (!purchase) return res.status(404).json({ success: false, message: "Purchase not found" });
 
-    res.status(200).json({ success: true, message: "Order placed successfully", cart });
+    // TODO: Create and return PayU payment order info for frontend redirection
+
+    purchase.status = "confirmed";
+    await purchase.save();
+
+    return res.status(200).json({ success: true, message: "Order placed successfully", purchase });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Place Order error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
-
