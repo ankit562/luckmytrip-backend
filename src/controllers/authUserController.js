@@ -136,7 +136,7 @@ export const Login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ message: "Logged in successfully", accessToken });
+    res.json({ message: "Logged in successfully", accessToken, role: user.role });
   } catch (error) {
     console.error("Login error:", {
       message: error?.message,
@@ -199,7 +199,7 @@ export const RefreshToken = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ accessToken });
+    res.json({ accessToken, role: user.role });
   } catch (error) {
     res.status(500).json({ message: "Could not refresh token", error: error.message });
   }
