@@ -11,7 +11,10 @@ import {
   ForgotPasswordRequest,   
   GetAllUsers ,
   deleteUser,
-  SearchUser
+  SearchUser,
+  getBillingInfo,
+  saveBillingInfo
+
 } from '../controllers/authUserController.js';
 
 import { authMiddleware } from '../middleware/authUserMiddleware.js';
@@ -30,6 +33,10 @@ router.route("/update-password").patch(authMiddleware(), ForgotPassword);
 router.route("/forgot-password").post(ForgotPasswordRequest);
 router.route("/:userId").delete(authMiddleware(), deleteUser);
 router.route("/search-user").get(SearchUser);
+router.route("/billing-info").get(authMiddleware(), getBillingInfo);
+router.route("/billing-info").post(authMiddleware(), saveBillingInfo);
+
+
 
 
 

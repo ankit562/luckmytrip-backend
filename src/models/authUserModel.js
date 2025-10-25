@@ -45,6 +45,15 @@ const clientSchema = new mongoose.Schema({
     instagram: { id: String, token: String },
     twitter: { id: String, token: String },
   },
+  billingInfo: {
+    firstName: { type: String },
+    companyName: { type: String },
+    address: { type: String },
+    apartment: { type: String },
+    city: { type: String },
+    phone: { type: String },
+    email: { type: String },
+  },
   ticket:{
     type:Number,
     required:false,

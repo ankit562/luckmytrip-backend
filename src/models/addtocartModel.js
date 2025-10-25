@@ -1,39 +1,95 @@
 import mongoose from "mongoose";
 
-const TicketPurchaseSchema = new mongoose.Schema(
+
+const TicketSchema = new mongoose.Schema({
+  ticket: {
+    type: String,
+    required: true,
+  },
+  ticketPrice: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1,
+  },
+});
+ const GiftSchema = new mongoose.Schema({
+  gift: {
+    type: String,
+    required: true,
+  },
+  giftPrice: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1,
+  },
+});
+
+
+
+const MultiTicketPurchaseSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
       required: true,
     },
-    name: { type: String, required: true, trim: true },
-    companyName: { type: String, trim: true }, // optional
-    streetAddress: { type: String, required: true, trim: true },
-    apartmentAddress: { type: String, trim: true }, // optional
-    town: { type: String, required: true },
-    phone: { type: String, required: true },
-    email: { type: String, required: true },
-
-    ticket: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Ticket",
-      required: true,
+    name:{ 
+      type: String, 
+      required: true, 
+      trim: true 
     },
-    ticketPrice: {
-      type: Number,
-      required: true,
-      min: 0,
+    companyName: {
+       type: String, 
+       trim: true 
+      }, 
+    streetAddress: { 
+      type: String, 
+      required: true, 
+      trim: true 
     },
-    quantity: {
-      type: Number,
-      default: 1,
+    apartmentAddress: { 
+      type: String, 
+      trim: true 
+    }, 
+    town: { 
+      type: String, 
+      required: true 
+    },
+    phone: { 
+      type: String, 
+      required: true
+    },
+    email: { 
+      type: String, 
+      required: true 
     },
 
-    gift: { type: String, trim: true },  // optional
-    coupon: { type: String, trim: true }, // optional
+    tickets: [TicketSchema], 
 
-    totalPrice: { type: Number, required: true, min: 0 },
+    gift: {
+      type: [GiftSchema],
+      default: [],
+    }, 
+    coupon: { 
+      type: String, 
+      trim: true 
+    }, 
+
+    totalPrice: { 
+      type: Number, 
+      required: true, 
+      min: 0
+    },
 
     status: {
       type: String,
@@ -44,11 +100,25 @@ const TicketPurchaseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-TicketPurchaseSchema.pre("save", function (next) {
-  this.totalPrice = this.ticketPrice * (this.quantity || 1);
+
+
+
+
+MultiTicketPurchaseSchema.pre("save", function (next) {
+  this.totalPrice = this.tickets.reduce(
+    (sum, t) => sum + t.ticketPrice * t.quantity,
+    0
+  );
+  this.giftPrice = this.gift.reduce(
+    (sum,g) => sum + g.giftPrice * g.quantity, 0
+  );
+  this.totalPrice += this.giftPrice;
   next();
 });
 
-const TicketPurchase = mongoose.model("TicketPurchase", TicketPurchaseSchema);
-export default TicketPurchase
+const MultiTicketPurchase = mongoose.model(
+  "MultiTicketPurchase",
+  MultiTicketPurchaseSchema
+);
 
+export default MultiTicketPurchase;

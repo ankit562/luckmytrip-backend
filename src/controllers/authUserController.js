@@ -359,3 +359,30 @@ const { query } = req.query;
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// controllers/userController.js
+export const saveBillingInfo = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const info = req.body;
+    // Assuming the user's billingInfo is a subdocument or field on Client
+    const user = await Client.findByIdAndUpdate(
+      userId,
+      { billingInfo: info },
+      { new: true, upsert: true }
+    );
+    return res.status(200).json({ billingInfo: user.billingInfo });
+  } catch (err) {
+    return res.status(500).json({ message: "Could not save billing info" });
+  }
+};
+
+export const getBillingInfo = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await Client.findById(userId);
+    return res.status(200).json({ billingInfo: user?.billingInfo || null });
+  } catch (err) {
+    return res.status(500).json({ message: "Could not get billing info" });
+  }
+};
