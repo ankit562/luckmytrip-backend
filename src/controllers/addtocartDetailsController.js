@@ -66,11 +66,13 @@ export const startTicketPurchase = async (req, res) => {
   }
 };
 
-// Place order and generate PayU payment details
+
+
+
+// Updated Place Order: routes via backend redirect handler, not direct frontend URL
 export const placeOrder = async (req, res) => {
   try {
     const { purchaseId } = req.body;
-    // console.log("Placing order for purchaseId:", purchaseId);
     const purchase = await MultiTicketPurchase.findById(purchaseId);
 
     if (!purchase)
@@ -79,8 +81,7 @@ export const placeOrder = async (req, res) => {
     const txnid = purchase._id.toString();
     const amount = purchase.totalPrice.toFixed(2);
 
-
-    // Combine product info string with ticket names and quantities
+    // Create product info string
     const productinfo = purchase.tickets
       .map((t) => `${t.ticket} x${t.quantity}`)
       .join(", ");
@@ -96,14 +97,31 @@ export const placeOrder = async (req, res) => {
       firstname,
       email,
     };
-    
 
+    // Debug: Check if PAYU_KEY is set
+    if (!process.env.PAYU_KEY) {
+      console.error("PAYU_KEY environment variable is not set!");
+      return res.status(500).json({ 
+        success: false, 
+        message: "Payment configuration error" 
+      });
+    }
+
+    console.log("PayU Data:", {
+      key: payuData.key ? "SET" : "MISSING",
+      txnid: payuData.txnid,
+      amount: payuData.amount,
+      productinfo: payuData.productinfo,
+      firstname: payuData.firstname,
+      email: payuData.email
+    });
 
     const hash = generatePayuHash(payuData, process.env.PAYU_SALT);
 
     const payuBaseUrl = process.env.PAYU_BASE_URL || "https://test.payu.in";
-    const frontendBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const backendBaseUrl = process.env.BACKEND_URL || "http://localhost:3000";
 
+    // ✅ Route browser through backend handler
     const paymentRequest = {
       actionUrl: `${payuBaseUrl}/_payment`,
       key: payuData.key,
@@ -113,16 +131,30 @@ export const placeOrder = async (req, res) => {
       firstname: payuData.firstname,
       email: payuData.email,
       phone: purchase.phone || "",
-      surl: `${frontendBaseUrl}/payment-success?txnid=${txnid}`,
-      furl: `${frontendBaseUrl}/payment-failed?txnid=${txnid}`,
+
+      // ✅ Backend routes handle success/failure and update DB immediately
+      surl: `${backendBaseUrl}/api/v1/cart/payment-redirect`,
+      furl: `${backendBaseUrl}/api/v1/cart/payment-redirect`,
       hash,
     };
-   console.log("Frontend URL:", process.env.FRONTEND_URL);
 
+    console.log("PayU payment URLs:", paymentRequest.surl, paymentRequest.furl);
+    console.log("Final Payment Request:", {
+      key: paymentRequest.key ? "SET" : "MISSING",
+      txnid: paymentRequest.txnid,
+      amount: paymentRequest.amount,
+      productinfo: paymentRequest.productinfo,
+      firstname: paymentRequest.firstname,
+      email: paymentRequest.email,
+      phone: paymentRequest.phone,
+      surl: paymentRequest.surl,
+      furl: paymentRequest.furl,
+      hash: paymentRequest.hash ? "SET" : "MISSING"
+    });
+
+    // Save pending state before redirecting
     purchase.status = "pending";
     await purchase.save();
-    console.log("Frontend URL2:", process.env.FRONTEND_URL);
-
 
     return res.status(200).json({ success: true, paymentRequest });
   } catch (error) {
@@ -130,6 +162,7 @@ export const placeOrder = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // PayU webhook callback handler
 export const payuCallback = async (req, res) => {
@@ -276,6 +309,71 @@ export const getPurchaseById = async (req, res) => {
 
 
 
+// Place order and generate PayU payment details
+// export const placeOrder = async (req, res) => {
+//   try {
+//     const { purchaseId } = req.body;
+//     // console.log("Placing order for purchaseId:", purchaseId);
+//     const purchase = await MultiTicketPurchase.findById(purchaseId);
+
+//     if (!purchase)
+//       return res.status(404).json({ success: false, message: "Purchase not found" });
+
+//     const txnid = purchase._id.toString();
+//     const amount = purchase.totalPrice.toFixed(2);
+
+
+//     // Combine product info string with ticket names and quantities
+//     const productinfo = purchase.tickets
+//       .map((t) => `${t.ticket} x${t.quantity}`)
+//       .join(", ");
+
+//     const firstname = purchase.name;
+//     const email = purchase.email;
+
+//     const payuData = {
+//       key: process.env.PAYU_KEY,
+//       txnid,
+//       amount,
+//       productinfo,
+//       firstname,
+//       email,
+//     };
+    
+
+
+//     const hash = generatePayuHash(payuData, process.env.PAYU_SALT);
+
+//     const payuBaseUrl = process.env.PAYU_BASE_URL || "https://test.payu.in";
+//     const frontendBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+//     const paymentRequest = {
+//       actionUrl: `${payuBaseUrl}/_payment`,
+//       key: payuData.key,
+//       txnid: payuData.txnid,
+//       amount: payuData.amount,
+//       productinfo: payuData.productinfo,
+//       firstname: payuData.firstname,
+//       email: payuData.email,
+//       phone: purchase.phone || "",
+//       surl: `${frontendBaseUrl}/payment-success?txnid=${txnid}`,
+//       furl: `${frontendBaseUrl}/payment-failed?txnid=${txnid}`,
+//       hash,
+//     };
+//    console.log("Frontend URL:", process.env.FRONTEND_URL);
+
+//     purchase.status = "pending";
+//     await purchase.save();
+//     console.log("Frontend URL2:", process.env.FRONTEND_URL);
+
+
+//     return res.status(200).json({ success: true, paymentRequest });
+//   } catch (error) {
+//     console.error("Place Order error:", error);
+//     return res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
 // Get all purchases (cart/orders) for user
 export const getCart = async (req, res) => {
   try {
@@ -324,3 +422,79 @@ export const removeCartItem = async (req, res) => {
   }
 };
 
+// Handle browser redirect from PayU and update status
+export const handlePaymentRedirect = async (req, res) => {
+  try {
+    console.log("=== Payment Redirect Received ===");
+    console.log("Method:", req.method);
+    console.log("Query Params:", req.query);
+    console.log("Body Params:", req.body);
+
+    // PayU can send data via GET (query params) or POST (body)
+    const params = req.method === 'POST' ? req.body : req.query;
+    const { txnid, status, mihpayid, amount, hash: payuHash } = params;
+
+    if (!txnid) {
+      console.error("No transaction ID in redirect");
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed`);
+    }
+
+    console.log("Transaction ID:", txnid);
+    console.log("Payment Status:", status);
+
+    const purchase = await MultiTicketPurchase.findById(txnid);
+
+    if (!purchase) {
+      console.error("Purchase not found for txnid:", txnid);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-failed?txnid=${txnid}`);
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+    // ✅ Update status based on PayU response
+    if (status && status.toLowerCase() === "success") {
+      console.log("✅ Payment successful, updating status to confirmed");
+      
+      purchase.status = "confirmed";
+      await purchase.save();
+
+      console.log("Status updated successfully");
+
+      // Send confirmation email asynchronously (don't block redirect)
+      sendOrderConfirmationEmail(
+        purchase.email,
+        purchase.tickets.map((t) => ({
+          name: t.ticket,
+          quantity: t.quantity,
+          price: t.ticketPrice * t.quantity,
+        })),
+        purchase.gift.map((g) => ({
+          name: g.gift,
+          quantity: g.quantity,
+          price: g.giftPrice * g.quantity,
+        })),
+        purchase._id.toString()
+      ).catch(err => console.error("Email error:", err));
+
+      // Redirect to success page
+      return res.redirect(
+        `${frontendUrl}/payment-success?txnid=${txnid}&status=success&mihpayid=${mihpayid || ''}`
+      );
+    } else {
+      console.log("❌ Payment failed or cancelled");
+      
+      purchase.status = "cancelled";
+      await purchase.save();
+
+      // Redirect to failure page
+      return res.redirect(
+        `${frontendUrl}/payment-failed?txnid=${txnid}&status=failed`
+      );
+    }
+  } catch (error) {
+    console.error("Payment redirect error:", error);
+    return res.redirect(
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment-failed`
+    );
+  }
+};

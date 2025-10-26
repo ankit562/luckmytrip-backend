@@ -7,6 +7,7 @@ import {
   placeOrder,
   payuCallback,
   getPurchaseById,
+  handlePaymentRedirect,
 } from "../controllers/addtocartDetailsController.js";
 import { authMiddleware } from "../middleware/authUserMiddleware.js";
 
@@ -24,4 +25,8 @@ router.post("/place-order", authMiddleware(), placeOrder);
 router.post("/payu-callback", payuCallback);
 router.get("/purchase/:purchaseId", getPurchaseById);
 
+
+// ✅ Browser redirect handler (handles both GET and POST from PayU)
+router.get("/payment-redirect", handlePaymentRedirect);
+router.post("/payment-redirect", handlePaymentRedirect);
 export default router;
