@@ -53,6 +53,7 @@ const clientSchema = new mongoose.Schema({
     city: { type: String },
     phone: { type: String },
     email: { type: String },
+    
   },
   ticket:{
     type:Number,
