@@ -100,10 +100,6 @@ const MultiTicketPurchaseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-
-
-
-
 MultiTicketPurchaseSchema.pre("save", function (next) {
   this.totalPrice = this.tickets.reduce(
     (sum, t) => sum + t.ticketPrice * t.quantity,

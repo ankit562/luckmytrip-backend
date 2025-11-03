@@ -26,7 +26,7 @@ const clientSchema = new mongoose.Schema({
     unique: true,
     trim: true,
   },
-  address: { 
+  address: {
     type: String,
   },
   role: {
@@ -34,10 +34,9 @@ const clientSchema = new mongoose.Schema({
     enum: ['client', 'admin', 'content-creator', 'superadmin'],
     default: 'client',
   },
-  won:{
-      type:Number,
-      required:false,
-      default:0
+  won: {
+    type: Number,
+    default: 0
   },
   socialLogins: {
     facebook: { id: String, token: String },
@@ -53,24 +52,34 @@ const clientSchema = new mongoose.Schema({
     city: { type: String },
     phone: { type: String },
     email: { type: String },
-    
+
   },
-  ticket:{
-    type:Number,
-    required:false,
-    default:0
+  ticket: {
+    type: Number,
+    required: false,
+    default: 0
   },
   refreshToken: {
-    type: String,  // for JWT refresh token management
+    type: String,
   },
-
+  lastWinCondition: {
+    type: Number,
+    default: null
+  },
+  winHistory: [
+    {
+      condition: Number,
+      date: Date
+    }
+  ],
   verifyToken: String,
   verifyTokenExpiry: Date,
   isVerified: { type: Boolean, default: false },
-  // Forgot password
   forgotPasswordToken: String,
   forgotPasswordTokenExpiry: Date,
   createdAt: { type: Date, default: Date.now },
+
+
 });
 
 // Password hashing before save

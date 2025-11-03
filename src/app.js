@@ -24,15 +24,20 @@ import ticketRouter from './routers/ticketRouter.js';
 import productRouter from './routers/productRouter.js';
 import contactUsInfoRouter from "./routers/ContactUsInfoRouter.js"
 import addToCartRouter from "./routers/addtocartRouter.js";
+import winnerRouter from "./routers/winnerRouter.js";
+import recentlyWinnerRouter from "./routers/recentlyWinnersRouter.js"
+
+import './job/scheduleWinnerDraw.js';
 
 
-
-//routes declaration
 app.use("/api/v1/auth" ,authUserRouter)
 app.use("/api/v1/tickets" ,ticketRouter)
 app.use("/api/v1/products" ,productRouter)
 app.use("/api/user-info", contactUsInfoRouter);
 app.use("/api/v1/cart", addToCartRouter); 
+app.use('/api/v1/draw-winner', winnerRouter);
+app.use("/api/v1/recent",recentlyWinnerRouter)
+
 
 
 
