@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import MultiTicketPurchase from "../models/addtocartModel.js";
+import Ticket from "../models/ticketModel.js";
 import { sendOrderConfirmationEmail } from "../lib/emailService.js";
 import { Client } from "../models/authUserModel.js";
 
@@ -17,6 +18,28 @@ function generatePayuHash(data, salt) {
   ].join("|") + "|" + salt;
 
   return crypto.createHash("sha512").update(hashSequence).digest("hex");
+}
+
+// Helpers for stock handling
+const normalizeName = (name) => (name || "").toString().replace(/_TICKET$/i, "").replace(/_/g, " ").trim();
+
+async function decrementTicketStock(purchase) {
+  if (!purchase?.tickets?.length) return;
+  for (const item of purchase.tickets) {
+    const qty = Number(item?.quantity) || 0;
+    const nameQuery = normalizeName(item?.ticket);
+    if (!nameQuery || qty <= 0) continue;
+    try {
+      let doc = await Ticket.findOne({ name: { $regex: `^${nameQuery}$`, $options: "i" } });
+      if (!doc) doc = await Ticket.findOne({ name: { $regex: nameQuery, $options: "i" } });
+      if (!doc) continue;
+      const newCount = Math.max(0, (Number(doc.ticket) || 0) - qty);
+      if (newCount !== doc.ticket) {
+        doc.ticket = newCount;
+        await doc.save();
+      }
+    } catch {}
+  }
 }
 
 // Create purchase with multiple tickets
@@ -74,6 +97,18 @@ export const placeOrder = async (req, res) => {
 
     if (!purchase)
       return res.status(404).json({ success: false, message: "Purchase not found" });
+
+    // Validate stock before proceeding
+    for (const item of purchase.tickets || []) {
+      const qty = Number(item?.quantity) || 0;
+      const nameQuery = normalizeName(item?.ticket);
+      if (!nameQuery || qty <= 0) continue;
+      let doc = await Ticket.findOne({ name: { $regex: `^${nameQuery}$`, $options: "i" } })
+        || await Ticket.findOne({ name: { $regex: nameQuery, $options: "i" } });
+      if (!doc || (Number(doc.ticket) || 0) <= 0) {
+        return res.status(400).json({ success: false, message: `${nameQuery} ticket out of stock` });
+      }
+    }
 
     const txnid = purchase._id.toString();
     const amount = purchase.totalPrice.toFixed(2);
@@ -181,6 +216,9 @@ export const payuCallback = async (req, res) => {
       purchase.status = "confirmed";
       await purchase.save();
 
+      // Decrement stock
+      await decrementTicketStock(purchase);
+
       // ✅ Update client's ticket count here
       const totalTicketsBought = purchase.tickets.reduce((sum, t) => sum + t.quantity, 0);
       await Client.findByIdAndUpdate(purchase.user, { $inc: { ticket: totalTicketsBought } });
@@ -258,6 +296,9 @@ export const handlePaymentRedirect = async (req, res) => {
     if (status && status.toLowerCase() === "success") {
       purchase.status = "confirmed";
       await purchase.save();
+
+      // Decrement stock
+      await decrementTicketStock(purchase);
 
       // ✅ Update client's ticket count here
       const totalTicketsBought = purchase.tickets.reduce((sum, t) => sum + t.quantity, 0);

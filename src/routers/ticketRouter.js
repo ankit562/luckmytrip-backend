@@ -4,7 +4,9 @@ import {
   getTicketById,
   addTicket,
   updateTicket,
-  deleteTicket
+  deleteTicket,
+  runDrawByName
+  
 } from "../controllers/ticketController.js";
 import { upload } from "../middleware/imageMulterMiddleware.js";
 import { authMiddleware } from "../middleware/authUserMiddleware.js";
@@ -31,5 +33,9 @@ router.put(
 );
 
 router.delete('/:id', authMiddleware(allowedRoles), deleteTicket);
+
+// Trigger draw by ticket name and archive it (admin only)
+router.post('/run-draw', authMiddleware(['superadmin','admin']), runDrawByName);
+
 
 export default router;

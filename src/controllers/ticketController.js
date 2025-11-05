@@ -1,7 +1,7 @@
 import Ticket from '../models/ticketModel.js';
 import { body, validationResult } from 'express-validator';
 import { uploadOnCloudinary } from '../lib/cloudinary.js';
-
+import { selectAndRecordWinnerForTicket } from '../lib/winnerSelectionServices.js';
 export const ticketValidationRules = () => [
   body('name').notEmpty().withMessage('Name is required').isLength({ min: 2 }),
   body('price').notEmpty().withMessage('Price is required').isFloat({ min: 0 }),
@@ -68,8 +68,17 @@ export const updateTicket = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
   try {
-    const imageLocalPath = req.files?.image?.[0]?.path;
+    const imageLocalPath = req.file?.image?.[0]?.path;
     const updateData = { ...req.body };
+    console.log("req.file:", req.file);
+    console.log("req.body:", req.body);
+    if (req.file) {
+      const uploadedImage = await uploadOnCloudinary(req.file.path);
+      if (!uploadedImage || !uploadedImage.secure_url) {
+        return res.status(500).json({ error: "Image upload failed" });
+      }
+      updateData.image = uploadedImage.secure_url;
+    }
 
     if (imageLocalPath) {
       const image = await uploadOnCloudinary(imageLocalPath);
@@ -92,6 +101,29 @@ export const deleteTicket = async (req, res) => {
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     res.json({ message: 'Ticket deleted successfully' });
   } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Run draw for a ticket by human-readable name and archive it
+export const runDrawByName = async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    const ticketDoc = await Ticket.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
+    if (!ticketDoc) return res.status(404).json({ error: 'Ticket not found' });
+
+    const purchaseKey = `${name.toUpperCase().replace(/\s+/g, '_')}_TICKET`;
+
+    const winner = await selectAndRecordWinnerForTicket(purchaseKey);
+
+    // Archive the ticket after draw
+    ticketDoc.status = 'archived';
+    await ticketDoc.save();
+
+    res.json({ message: 'Draw completed', winner });
+  } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 };
