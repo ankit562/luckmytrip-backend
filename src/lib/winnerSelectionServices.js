@@ -17,11 +17,15 @@ export function pickWeightedWinner(users) {
 
 // Calculate user chance limited to purchases of a given ticketId and general rules
 export async function calculateUserChanceForTicket(user, ticketId) {
-  // Find all purchases for this user filtered to the specific ticket
-  const purchases = await MultiTicketPurchase.find({
+  // Find all confirmed purchases for this user
+  const allPurchases = await MultiTicketPurchase.find({
     user: user._id,
-    'tickets.ticket': ticketId,
     status: 'confirmed',
+  });
+
+  // Filter purchases that contain this specific ticket
+  const purchases = allPurchases.filter(purchase => {
+    return purchase.tickets.some(t => t.ticket === ticketId);
   });
 
   let totalTickets = 0;
@@ -29,10 +33,12 @@ export async function calculateUserChanceForTicket(user, ticketId) {
 
   for (const purchase of purchases) {
     for (const t of purchase.tickets) {
-      if (t.ticket.toString() === ticketId.toString()) {
+      if (t.ticket === ticketId) {
         totalTickets += t.quantity;
         eventNamesSet.add(t.ticket);
       }
+      // Also add all other ticket types to eventNamesSet for condition 3
+      eventNamesSet.add(t.ticket);
     }
   }
 
@@ -73,44 +79,75 @@ export async function calculateUserChanceForTicket(user, ticketId) {
 
 // Select and record winner for a specific ticket/event
 export async function selectAndRecordWinnerForTicket(ticketId) {
-  // Find users who bought this ticket
-  const purchases = await MultiTicketPurchase.find({ 'tickets.ticket': ticketId, status: 'confirmed' });
+  try {
+    console.log('Selecting winner for ticketId:', ticketId);
+    
+    // Find all confirmed purchases that contain this ticket
+    const allPurchases = await MultiTicketPurchase.find({ status: 'confirmed' });
+    
+    // Filter purchases that have this specific ticket
+    const purchases = allPurchases.filter(purchase => {
+      return purchase.tickets.some(t => t.ticket === ticketId);
+    });
 
-  const userMap = new Map();
+    console.log(`Found ${purchases.length} purchases with ticket ${ticketId}`);
 
-  // Aggregate users and ticket quantities for this ticket
-  for (const purchase of purchases) {
-    const userIdStr = purchase.user.toString();
-    if (!userMap.has(userIdStr)) userMap.set(userIdStr, { userId: purchase.user, ticketQuantity: 0 });
-    for (const t of purchase.tickets) {
-      if (t.ticket.toString() === ticketId.toString()) {
-        userMap.get(userIdStr).ticketQuantity += t.quantity;
+    if (purchases.length === 0) {
+      console.log('No purchases found for this ticket');
+      return null;
+    }
+
+    const userMap = new Map();
+
+    // Aggregate users and ticket quantities for this ticket
+    for (const purchase of purchases) {
+      const userIdStr = purchase.user.toString();
+      if (!userMap.has(userIdStr)) {
+        userMap.set(userIdStr, { userId: purchase.user, ticketQuantity: 0 });
+      }
+      for (const t of purchase.tickets) {
+        if (t.ticket === ticketId) {
+          userMap.get(userIdStr).ticketQuantity += t.quantity;
+        }
       }
     }
+
+    console.log(`Found ${userMap.size} unique users who purchased this ticket`);
+
+    const userChances = [];
+
+    for (const { userId } of userMap.values()) {
+      const user = await Client.findById(userId);
+      if (!user) {
+        console.log(`User ${userId} not found`);
+        continue;
+      }
+
+      const { chance, winningCondition } = await calculateUserChanceForTicket(user, ticketId);
+      console.log(`User ${user.fullName}: chance=${chance}, condition=${winningCondition}`);
+
+      userChances.push({ user, chance, winningCondition });
+    }
+
+    if (userChances.length === 0) {
+      console.log('No eligible users found');
+      return null;
+    }
+
+    // Pick weighted winner
+    const winner = pickWeightedWinner(userChances);
+    console.log(`Winner selected: ${winner.user.fullName} with condition ${winner.winningCondition}`);
+
+    // Update winner data
+    await Client.findByIdAndUpdate(winner.user._id, {
+      lastWinCondition: winner.winningCondition,
+      $push: { winHistory: { condition: winner.winningCondition, date: new Date() } },
+      $inc: { won: 1 },
+    });
+
+    return winner;
+  } catch (error) {
+    console.error('Error in selectAndRecordWinnerForTicket:', error);
+    throw error;
   }
-
-  const userChances = [];
-
-  for (const { userId } of userMap.values()) {
-    const user = await Client.findById(userId);
-    if (!user) continue;
-
-    const { chance, winningCondition } = await calculateUserChanceForTicket(user, ticketId);
-
-    userChances.push({ user, chance, winningCondition });
-  }
-
-  if (userChances.length === 0) return null;
-
-  // Pick weighted winner
-  const winner = pickWeightedWinner(userChances);
-
-  // Update winner data
-  await Client.findByIdAndUpdate(winner.user._id, {
-    lastWinCondition: winner.winningCondition,
-    $push: { winHistory: { condition: winner.winningCondition, date: new Date() } },
-    $inc: { won: 1 },
-  });
-
-  return winner;
 }
